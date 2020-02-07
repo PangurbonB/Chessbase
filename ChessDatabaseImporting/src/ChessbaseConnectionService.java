@@ -6,17 +6,22 @@ import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
+import java.util.ArrayList;
 
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
+import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableModel;
 
 public class ChessbaseConnectionService {
@@ -29,6 +34,9 @@ public class ChessbaseConnectionService {
 	private JFrame useFrame;
 	private JTextField userBox;
 	private JTextField passBox;
+	private JTable table;
+	private JComboBox selectionMenu;
+	private String[] tableNames = {"Judge", "Person", "Player", "Tournament", "MatchHost", "ChessMatch", "ChessMove", "CompetesIn"};
 	
 	public ChessbaseConnectionService(String serverName, String databaseName) {
 		this.serverName = serverName;
@@ -71,7 +79,7 @@ public class ChessbaseConnectionService {
 		} catch (SQLException e) {
 			e.printStackTrace();
 		}
-	}
+	}	
 	
 	public void openUseFrame() {
 		JFrame frame = new JFrame("Chessbase Query Window");
@@ -80,6 +88,7 @@ public class ChessbaseConnectionService {
 		frame.add(panel, BorderLayout.CENTER);
 		this.loginFrame.dispose();
 		
+		panel.setLayout(new BorderLayout());
 		
 		try {
 			String query = "SELECT Username, Pswd, FullName, JoinDate FROM Person";
@@ -97,15 +106,26 @@ public class ChessbaseConnectionService {
 			model.addColumn("Password");
 			model.addColumn("Full Name");
 			model.addColumn("Join Date");
-			
 			while(rs.next()) {
 				i++;
+				
 				model.addRow(new Object[]{rs.getString("Username"), rs.getString("Pswd"), rs.getString("FullName"), rs.getString("JoinDate")});
+				
 				System.out.println(rs.getString("Username") + " : " + rs.getString("Pswd") + " : " +rs.getString("FullName") + " : " +rs.getString("JoinDate"));
 			}
 			JScrollPane scrollPane = new JScrollPane(table);
-			table.setFillsViewportHeight(true);
-			frame.add(scrollPane);
+			
+			this.table = table;
+			table.setDefaultEditor(Object.class, null);
+			table.getTableHeader().setReorderingAllowed(false); 
+			
+			JComboBox tableList = new JComboBox(tableNames);
+			tableList.setSelectedIndex(1);
+			tableList.addActionListener(new TableSwitchListener());
+			this.selectionMenu = tableList;
+			
+			panel.add(tableList, BorderLayout.PAGE_START);
+			panel.add(scrollPane, BorderLayout.PAGE_END);
 			frame.pack();
 			frame.setVisible(true);
 			System.out.println("Returned");
@@ -160,8 +180,53 @@ public class ChessbaseConnectionService {
 			ChessbaseConnectionService.this.openUseFrame();
 		}
 
-		
-		
 	}
 	
+	private class TableSwitchListener implements ActionListener{
+
+		@Override
+		public void actionPerformed(ActionEvent arg0) {
+			
+			Object selected = selectionMenu.getSelectedItem();
+			
+			String query = "SELECT * FROM "+ selected.toString();
+			
+			Statement s;
+			
+			try {
+				s = connection.createStatement();
+				ResultSet rs = s.executeQuery(query);
+				ResultSetMetaData rsmd = rs.getMetaData();
+				ArrayList<String> names = new ArrayList<String>();
+				int columnCount = rsmd.getColumnCount();
+			
+				DefaultTableModel model = (DefaultTableModel) table.getModel();
+				model.setColumnCount(0);
+				model.setRowCount(0);
+				for(int i = 0; i < columnCount; i++) {
+					names.add(rsmd.getColumnName(i+1));
+					model.addColumn(rsmd.getColumnName(i+1));
+				}
+				
+				int i = 0;
+				while(rs.next()) {
+					i++;
+					Object[] data = new Object[names.size()];
+					for(int j = 0; j < names.size(); j++) {
+						data[j] = rs.getString(j+1);
+					}
+					model.addRow(data);
+				}
+				
+				
+				System.out.println(names);
+			} catch (SQLException e) {
+				e.printStackTrace();
+			}
+			
+			System.out.println(query);
+		}
+		
+	}
+
 }
