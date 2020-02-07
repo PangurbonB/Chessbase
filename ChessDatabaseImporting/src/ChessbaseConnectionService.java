@@ -5,6 +5,7 @@ import java.sql.Array;
 import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -34,9 +35,15 @@ public class ChessbaseConnectionService {
 	private JFrame useFrame;
 	private JTextField userBox;
 	private JTextField passBox;
+	private JTextField searchBox;
 	private JTable table;
 	private JComboBox selectionMenu;
+	private JComboBox constraintMenu;
 	private String[] tableNames = {"Judge", "Person", "Player", "Tournament", "MatchHost", "ChessMatch", "ChessMove", "CompetesIn"};
+	private String[] searchOptions = {"None", "ELO Search", "Full Name Search", "Tournament Name Search"};
+	private String[] searchTables = {"Player", "Person", "Tournament"};
+	private String[] searchWheres = {"ELO", "FullName", "TournamentName"};
+	private JButton searchButton;
 	
 	public ChessbaseConnectionService(String serverName, String databaseName) {
 		this.serverName = serverName;
@@ -86,9 +93,9 @@ public class ChessbaseConnectionService {
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		JPanel panel = new JPanel();
 		frame.add(panel, BorderLayout.CENTER);
+		JPanel topPanel = new JPanel();
+		panel.add(topPanel, BorderLayout.PAGE_START);
 		this.loginFrame.dispose();
-		
-		panel.setLayout(new BorderLayout());
 		
 		try {
 			String query = "SELECT Username, Pswd, FullName, JoinDate FROM Person";
@@ -124,7 +131,21 @@ public class ChessbaseConnectionService {
 			tableList.addActionListener(new TableSwitchListener());
 			this.selectionMenu = tableList;
 			
-			panel.add(tableList, BorderLayout.PAGE_START);
+			JComboBox constraintList = new JComboBox(searchOptions);
+			constraintList.setSelectedIndex(0);
+			this.constraintMenu = constraintList;
+			
+			JTextField entryBox = new JTextField(50);
+			this.searchBox = entryBox;
+			
+			JButton searchButton = new JButton("Search");
+			searchButton.addActionListener(new SearchButtonListener());
+			this.searchButton = searchButton;
+			
+			topPanel.add(tableList, BorderLayout.WEST);
+			topPanel.add(constraintList,BorderLayout.CENTER);
+			topPanel.add(entryBox, BorderLayout.EAST);
+			topPanel.add(searchButton, BorderLayout.EAST);
 			panel.add(scrollPane, BorderLayout.PAGE_END);
 			frame.pack();
 			frame.setVisible(true);
@@ -180,6 +201,56 @@ public class ChessbaseConnectionService {
 			ChessbaseConnectionService.this.openUseFrame();
 		}
 
+	}
+	
+	private class SearchButtonListener implements ActionListener{
+
+		@Override
+		public void actionPerformed(ActionEvent arg0) {
+			
+			String query = "SELECT * FROM ";
+			PreparedStatement ps;
+			if(constraintMenu.getSelectedIndex() == 0) {
+				System.out.println("Bad Selection!");
+				return;
+			}
+			try {
+				query = query + searchTables[constraintMenu.getSelectedIndex() -1] + " WHERE " + searchWheres[constraintMenu.getSelectedIndex() - 1] + " = '" +searchBox.getText()+"'";
+				System.out.println(query);
+				ps = connection.prepareStatement(query);
+				ResultSet rs = ps.executeQuery();
+
+				DefaultTableModel model = (DefaultTableModel) table.getModel();
+				model.setColumnCount(0);
+				model.setRowCount(0);
+				
+
+				ResultSetMetaData rsmd = rs.getMetaData();
+				ArrayList<String> names = new ArrayList<String>();
+				int columnCount = rsmd.getColumnCount();
+
+				
+				for(int i = 0; i < columnCount; i++) {
+					names.add(rsmd.getColumnName(i+1));
+					model.addColumn(rsmd.getColumnName(i+1));
+				}
+				
+				while(rs.next()) {
+					Object[] data = new Object[names.size()];
+					for(int j = 0; j < names.size(); j++) {
+						data[j] = rs.getString(j+1);
+					}
+					model.addRow(data);
+				}
+				
+				
+			} catch (SQLException e) {
+				e.printStackTrace();
+			}
+			
+			
+		}
+		
 	}
 	
 	private class TableSwitchListener implements ActionListener{
