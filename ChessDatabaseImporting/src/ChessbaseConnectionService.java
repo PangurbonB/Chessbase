@@ -1,6 +1,7 @@
 import java.awt.BorderLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.sql.Array;
 import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -13,7 +14,10 @@ import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTable;
 import javax.swing.JTextField;
+import javax.swing.table.DefaultTableModel;
 
 public class ChessbaseConnectionService {
 	
@@ -21,14 +25,15 @@ public class ChessbaseConnectionService {
 
 	private Connection connection = null;
 	private String serverName, databaseName;
-	private JFrame frame;
+	private JFrame loginFrame;
+	private JFrame useFrame;
 	private JTextField userBox;
 	private JTextField passBox;
 	
 	public ChessbaseConnectionService(String serverName, String databaseName) {
 		this.serverName = serverName;
 		this.databaseName = databaseName;
-		this.frame = makeDialog();
+		this.loginFrame = makeLoginDialog();
 	}
 	
 	private boolean connectFromFrame() {
@@ -51,7 +56,7 @@ public class ChessbaseConnectionService {
 			
 		}
 		catch(SQLException e) {
-			e.printStackTrace();
+			System.out.println("Invalid Login Credentials");
 		}
 		return false;	
 	}
@@ -68,16 +73,61 @@ public class ChessbaseConnectionService {
 		}
 	}
 	
-	public JFrame makeDialog() {
+	public void openUseFrame() {
+		JFrame frame = new JFrame("Chessbase Query Window");
+		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		JPanel panel = new JPanel();
+		frame.add(panel, BorderLayout.CENTER);
+		this.loginFrame.dispose();
+		
+		
+		try {
+			String query = "SELECT Username, Pswd, FullName, JoinDate FROM Person";
+			Statement s = connection.createStatement();
+			ResultSet rs = s.executeQuery(query);
+			
+			System.out.println("Made Query");
+			
+			JTable table = new JTable(new DefaultTableModel());
+			
+			int i = 0;
+			DefaultTableModel model = (DefaultTableModel) table.getModel();
+			
+			model.addColumn("Username"); 
+			model.addColumn("Password");
+			model.addColumn("Full Name");
+			model.addColumn("Join Date");
+			
+			while(rs.next()) {
+				i++;
+				model.addRow(new Object[]{rs.getString("Username"), rs.getString("Pswd"), rs.getString("FullName"), rs.getString("JoinDate")});
+				System.out.println(rs.getString("Username") + " : " + rs.getString("Pswd") + " : " +rs.getString("FullName") + " : " +rs.getString("JoinDate"));
+			}
+			JScrollPane scrollPane = new JScrollPane(table);
+			table.setFillsViewportHeight(true);
+			frame.add(scrollPane);
+			frame.pack();
+			frame.setVisible(true);
+			System.out.println("Returned");
+			return;
+		}
+		catch(SQLException e) {
+			e.printStackTrace();
+		}
+		this.useFrame = frame;
+		closeConnection();
+	}
+	
+	public JFrame makeLoginDialog() {
 		JFrame frame = new JFrame("Chessbase Connection Window");
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		JPanel panel = new JPanel();
 		frame.add(panel, BorderLayout.CENTER);
 		
 		JTextField usernameEntry = new JTextField(50);
-		usernameEntry.setText("Enter Username");
+		usernameEntry.setText("SodaBaseUserzonickba20");
 		JTextField passwordEntry = new JTextField(50);
-		passwordEntry.setText("Enter Password");
+		passwordEntry.setText("Password123");
 		JButton connectButton = new JButton("Connect");
 		connectButton.addActionListener(new ConnectActionListener());
 		
@@ -98,22 +148,16 @@ public class ChessbaseConnectionService {
 
 		@Override
 		public void actionPerformed(ActionEvent e) {
-			boolean b = connectFromFrame();
-			
-			try {
-				String query = "SELECT Username, Pswd, FullName, JoinDate FROM Person";
-				Statement s = connection.createStatement();
-				ResultSet rs = s.executeQuery(query);
-				while(rs.next()) {
-					System.out.println(rs.getString("Username") + " : " + rs.getString("Pswd") + " : " +rs.getString("FullName") + " : " +rs.getString("JoinDate"));
-				}
-			} catch (SQLException ex) {
-				ex.printStackTrace();
+			boolean connectionSuccessful = connectFromFrame();
+			if(!connectionSuccessful) {
+				System.out.println("Failed Connection");
+				return;
 			}
-			
-			
-			System.out.println(b);
-			closeConnection();
+			openUseFrame();
+		}
+
+		private void openUseFrame() {
+			ChessbaseConnectionService.this.openUseFrame();
 		}
 
 		
