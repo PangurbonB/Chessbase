@@ -14,7 +14,11 @@ import java.util.Random;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 import javax.swing.JOptionPane;
-
+/**
+ * This method handles user verification
+ * @author zonickba
+ *
+ */
 public class ChessbaseUserService {
 	
 	private static final Random RANDOM = new SecureRandom();
@@ -22,6 +26,12 @@ public class ChessbaseUserService {
 	private static final Base64.Decoder dec = Base64.getDecoder();
 	private ChessbaseConnectionService dbService = null;
 
+	/**
+	 * This method handles logging in. **CURRENTLY NON FUNCTIONAL**
+	 * @param username
+	 * @param password
+	 * @return
+	 */
 	public boolean login(String username, String password) {
 	
 		Connection c = dbService.getConnection();
@@ -47,6 +57,12 @@ public class ChessbaseUserService {
 		return false;
 	}
 
+	/**
+	 * This method handles registering **CURRENTLY NON FUNCTIONAL**
+	 * @param username
+	 * @param password
+	 * @return
+	 */
 	public boolean register(String username, String password) {
 		byte[] salt = getNewSalt();
 		String hash = hashPassword(salt, password);

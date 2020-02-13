@@ -24,7 +24,11 @@ import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableModel;
-
+/**
+ * This method handles connection to the database, along with the GUI
+ * @author zonickba
+ *
+ */
 public class ChessbaseConnectionService {
 	
 	private final String connectionURL = "jdbc:sqlserver://${dbServer};databaseName=${dbName};user=${user};password={${pass}}";
@@ -45,21 +49,23 @@ public class ChessbaseConnectionService {
 	private String[] searchWheres = {"ELO", "FullName", "TournamentName"};
 	private JButton searchButton;
 	
+	/**
+	 * A basic constructor for our connection service.
+	 * @param serverName the name of the server we are connecting to
+	 * @param databaseName our database name
+	 */
 	public ChessbaseConnectionService(String serverName, String databaseName) {
 		this.serverName = serverName;
 		this.databaseName = databaseName;
 		this.loginFrame = makeLoginDialog();
 	}
 	
-	private boolean connectFromFrame() {
-		
-		String user = this.userBox.getText();
-		String pass = this.passBox.getText();
-		
-		return connect(user, pass);
-	}
-	
-	
+	/**
+	 * This is the method that connects to the database.
+	 * @param user username
+	 * @param pass password
+	 * @return
+	 */
 	public boolean connect(String user, String pass) {
 		
 		String connectionString = connectionURL.replace("${dbServer}", serverName).replace("${dbName}", databaseName).replace("${user}", user).replace("{${pass}}", pass);
@@ -76,10 +82,16 @@ public class ChessbaseConnectionService {
 		return false;	
 	}
 	
+	/**
+	 * @return a connection object (our connection)
+	 */
 	public Connection getConnection() {
 		return this.connection;
 	}
 	
+	/**
+	 * closes the connection
+	 */
 	public void closeConnection() {
 		try {
 			this.connection.close();
@@ -88,6 +100,9 @@ public class ChessbaseConnectionService {
 		}
 	}	
 	
+	/**
+	 * Opens the 'use' frame, where we can select from and edit our data.
+	 */
 	public void openUseFrame() {
 		JFrame frame = new JFrame("Chessbase Query Window");
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -98,11 +113,11 @@ public class ChessbaseConnectionService {
 		this.loginFrame.dispose();
 		
 		try {
-			String query = "SELECT Username, Pswd, FullName, JoinDate FROM Person";
+			String query = "SELECT Username, Pswd, FullName, JoinDate FROM Person"; //The starting info, in there by default.
 			Statement s = connection.createStatement();
 			ResultSet rs = s.executeQuery(query);
 			
-			System.out.println("Made Query");
+			//System.out.println("Made Query");
 			
 			JTable table = new JTable(new DefaultTableModel());
 			
@@ -149,7 +164,7 @@ public class ChessbaseConnectionService {
 			panel.add(scrollPane, BorderLayout.PAGE_END);
 			frame.pack();
 			frame.setVisible(true);
-			System.out.println("Returned");
+			//System.out.println("Returned");
 			return;
 		}
 		catch(SQLException e) {
@@ -159,6 +174,10 @@ public class ChessbaseConnectionService {
 		closeConnection();
 	}
 	
+	/**
+	 * This method makes the login dialog, where the user enters login credentials to acces our database.
+	 * @return
+	 */
 	public JFrame makeLoginDialog() {
 		JFrame frame = new JFrame("Chessbase Connection Window");
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -166,7 +185,7 @@ public class ChessbaseConnectionService {
 		frame.add(panel, BorderLayout.CENTER);
 		
 		JTextField usernameEntry = new JTextField(50);
-		usernameEntry.setText("SodaBaseUserzonickba20");
+		usernameEntry.setText("SodaBaseUserzonickba20"); //default credentials
 		JTextField passwordEntry = new JTextField(50);
 		passwordEntry.setText("Password123");
 		JButton connectButton = new JButton("Connect");
@@ -184,7 +203,12 @@ public class ChessbaseConnectionService {
 		return frame;
 	}
 	
-	
+	/**
+	 * This action listener is associated with the connection button, and calls the 
+	 * relevant method when the button is hit
+	 * @author zonickba
+	 *
+	 */
 	private class ConnectActionListener implements ActionListener{
 
 		@Override
@@ -203,6 +227,24 @@ public class ChessbaseConnectionService {
 
 	}
 	
+	/**
+	 * This method gets called when the 'connect' button gets hit. Takes info from the user and password
+	 * boxes and connects with it.
+	 * @return
+	 */
+	private boolean connectFromFrame() {
+		
+		String user = this.userBox.getText();
+		String pass = this.passBox.getText();
+		
+		return connect(user, pass);
+	}
+	
+	/**
+	 * This button is attached to the 'Search' button, and executes the search when the button is hit.
+	 * @author zonickba
+	 *
+	 */
 	private class SearchButtonListener implements ActionListener{
 
 		@Override
@@ -214,7 +256,7 @@ public class ChessbaseConnectionService {
 				System.out.println("Bad Selection!");
 				return;
 			}
-			try {
+			try { //This part goes and executes the query we want executed.
 				query = query + searchTables[constraintMenu.getSelectedIndex() -1] + " WHERE " + searchWheres[constraintMenu.getSelectedIndex() - 1] + " = '" +searchBox.getText()+"'";
 				System.out.println(query);
 				ps = connection.prepareStatement(query);
@@ -253,6 +295,12 @@ public class ChessbaseConnectionService {
 		
 	}
 	
+	/**
+	 * When someone switches what table they are viewing, this listener activates, and updates the table
+	 * displayed.
+	 * @author zonickba
+	 *
+	 */
 	private class TableSwitchListener implements ActionListener{
 
 		@Override

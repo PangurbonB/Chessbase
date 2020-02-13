@@ -1,4 +1,8 @@
-
+/**
+ * Makes a connection client
+ * @author zonickba
+ *
+ */
 public class ConnectionClient {
 	
 	ChessbaseConnectionService chessdb;
