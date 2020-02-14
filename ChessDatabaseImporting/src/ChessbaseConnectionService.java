@@ -26,7 +26,7 @@ import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableModel;
 /**
  * This method handles connection to the database, along with the GUI
- * @author zonickba
+ * @author zonickba, juricar
  *
  */
 public class ChessbaseConnectionService {
