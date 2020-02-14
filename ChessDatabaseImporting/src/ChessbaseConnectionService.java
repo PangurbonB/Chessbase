@@ -1,4 +1,5 @@
 import java.awt.BorderLayout;
+import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.sql.Array;
@@ -16,12 +17,17 @@ import java.util.ArrayList;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
+import javax.swing.plaf.basic.BasicOptionPaneUI;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableModel;
 /**
@@ -37,12 +43,17 @@ public class ChessbaseConnectionService {
 	private String serverName, databaseName;
 	private JFrame loginFrame;
 	private JFrame useFrame;
+	private JFrame inputFrame;
 	private JTextField userBox;
 	private JTextField passBox;
 	private JTextField searchBox;
 	private JTable table;
 	private JComboBox selectionMenu;
 	private JComboBox constraintMenu;
+	private int numFields;
+	private ArrayList<String> fieldNames;
+	private JPanel inputPanel;
+	private ArrayList<JTextField> inputs;
 	private String[] tableNames = {"Judge", "Person", "Player", "Tournament", "MatchHost", "ChessMatch", "ChessMove", "CompetesIn"};
 	private String[] searchOptions = {"None", "ELO Search", "Full Name Search", "Tournament Name Search"};
 	private String[] searchTables = {"Player", "Person", "Tournament"};
@@ -69,7 +80,7 @@ public class ChessbaseConnectionService {
 	public boolean connect(String user, String pass) {
 		
 		String connectionString = connectionURL.replace("${dbServer}", serverName).replace("${dbName}", databaseName).replace("${user}", user).replace("{${pass}}", pass);
-		System.out.println(connectionString);
+		//System.out.println(connectionString);
 		try {
 			Connection c = DriverManager.getConnection(connectionString);
 			this.connection = c;
@@ -106,11 +117,16 @@ public class ChessbaseConnectionService {
 	public void openUseFrame() {
 		JFrame frame = new JFrame("Chessbase Query Window");
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		createMenuBar(frame);
 		JPanel panel = new JPanel();
 		frame.add(panel, BorderLayout.CENTER);
 		JPanel topPanel = new JPanel();
 		panel.add(topPanel, BorderLayout.PAGE_START);
 		this.loginFrame.dispose();
+		if (this.inputFrame != null) {
+			this.inputFrame.dispose();
+		}
+		this.useFrame = frame;
 		
 		try {
 			String query = "SELECT Username, Pswd, FullName, JoinDate FROM Person"; //The starting info, in there by default.
@@ -133,7 +149,7 @@ public class ChessbaseConnectionService {
 				
 				model.addRow(new Object[]{rs.getString("Username"), rs.getString("Pswd"), rs.getString("FullName"), rs.getString("JoinDate")});
 				
-				System.out.println(rs.getString("Username") + " : " + rs.getString("Pswd") + " : " +rs.getString("FullName") + " : " +rs.getString("JoinDate"));
+				//System.out.println(rs.getString("Username") + " : " + rs.getString("Pswd") + " : " +rs.getString("FullName") + " : " +rs.getString("JoinDate"));
 			}
 			JScrollPane scrollPane = new JScrollPane(table);
 			
@@ -170,8 +186,62 @@ public class ChessbaseConnectionService {
 		catch(SQLException e) {
 			e.printStackTrace();
 		}
-		this.useFrame = frame;
 		closeConnection();
+	}
+	
+	private void openInputFrame() {
+		JFrame frame = new JFrame("Chessbase Query Window");
+		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		frame.setSize(new Dimension(1250, 350));
+		createMenuBar(frame);
+		JPanel panel = new JPanel(new BorderLayout());
+		frame.add(panel);
+		if (this.useFrame != null) {
+			this.useFrame.dispose();
+		}
+		
+		JPanel topPanel = new JPanel();
+		JLabel tableText = new JLabel("Table to insert into:");
+		JComboBox tableChoice = new JComboBox(tableNames);
+		tableChoice.setSelectedIndex(-1);
+		tableChoice.addActionListener(new TableSwitchListener());
+		this.selectionMenu = tableChoice;
+		topPanel.add(tableText);
+		topPanel.add(tableChoice);
+		panel.add(topPanel, BorderLayout.NORTH);
+		
+		JPanel centerPanel = new JPanel();
+		this.inputPanel = centerPanel;
+		panel.add(centerPanel, BorderLayout.CENTER);
+		
+		JPanel bottomPanel = new JPanel();
+		JButton insertButton = new JButton("Insert into Table");
+		insertButton.addActionListener(null);
+		
+		this.inputFrame = frame;
+		frame.setVisible(true);
+	}
+	
+	private void createMenuBar(JFrame frame) {
+		JMenuBar menuBar = new JMenuBar();
+		JMenu menu = new JMenu("Applications");
+		
+		JMenuItem search = new JMenuItem("Search");
+		search.setToolTipText("Search through the Database");
+		search.addActionListener((event) -> openUseFrame());
+		
+		JMenuItem insert = new JMenuItem("Insert");
+		insert.setToolTipText("Input data into the Database");
+		insert.addActionListener((event) -> openInputFrame());
+		
+		menu.add(search);
+		menu.add(insert);
+		
+		menuBar.add(menu);
+		
+		frame.setJMenuBar(menuBar);
+		
+		
 	}
 	
 	/**
@@ -258,7 +328,7 @@ public class ChessbaseConnectionService {
 			}
 			try { //This part goes and executes the query we want executed.
 				query = query + searchTables[constraintMenu.getSelectedIndex() -1] + " WHERE " + searchWheres[constraintMenu.getSelectedIndex() - 1] + " = '" +searchBox.getText()+"'";
-				System.out.println(query);
+				//System.out.println(query);
 				ps = connection.prepareStatement(query);
 				ResultSet rs = ps.executeQuery();
 
@@ -318,6 +388,7 @@ public class ChessbaseConnectionService {
 				ResultSetMetaData rsmd = rs.getMetaData();
 				ArrayList<String> names = new ArrayList<String>();
 				int columnCount = rsmd.getColumnCount();
+				numFields = columnCount;
 			
 				DefaultTableModel model = (DefaultTableModel) table.getModel();
 				model.setColumnCount(0);
@@ -326,6 +397,7 @@ public class ChessbaseConnectionService {
 					names.add(rsmd.getColumnName(i+1));
 					model.addColumn(rsmd.getColumnName(i+1));
 				}
+				fieldNames = names;
 				
 				int i = 0;
 				while(rs.next()) {
@@ -336,14 +408,76 @@ public class ChessbaseConnectionService {
 					}
 					model.addRow(data);
 				}
+				if (inputPanel != null) {
+					inputPanel.removeAll();
+					ArrayList<JTextField> texts = new ArrayList<JTextField>();
+					for (int k = 0; k < numFields; k++) {
+						JTextField text = new JTextField(10);
+						text.setText(fieldNames.get(k));
+						texts.add(text);
+						inputPanel.add(text);
+					}
+					inputs = texts;
+					inputPanel.revalidate();
+					inputPanel.repaint();
+					inputFrame.repaint();
+				}
 				
 				
-				System.out.println(names);
+				//System.out.println(names);
 			} catch (SQLException e) {
 				e.printStackTrace();
 			}
 			
-			System.out.println(query);
+			//System.out.println(query);
+		}
+		
+	}
+	
+	private class InsertButtonListener implements ActionListener{
+
+		@Override
+		public void actionPerformed(ActionEvent arg0) {
+			
+			Object selected = selectionMenu.getSelectedItem();
+			
+			String query = "EXEC " + selected +"Insert ";
+			PreparedStatement ps;
+			try { //This part goes and executes the query we want executed.
+				query = query + searchTables[constraintMenu.getSelectedIndex() -1] + " WHERE " + searchWheres[constraintMenu.getSelectedIndex() - 1] + " = '" +searchBox.getText()+"'";
+				//System.out.println(query);
+				ps = connection.prepareStatement(query);
+				ResultSet rs = ps.executeQuery();
+
+				DefaultTableModel model = (DefaultTableModel) table.getModel();
+				model.setColumnCount(0);
+				model.setRowCount(0);
+				
+
+				ResultSetMetaData rsmd = rs.getMetaData();
+				ArrayList<String> names = new ArrayList<String>();
+				int columnCount = rsmd.getColumnCount();
+
+				
+				for(int i = 0; i < columnCount; i++) {
+					names.add(rsmd.getColumnName(i+1));
+					model.addColumn(rsmd.getColumnName(i+1));
+				}
+				
+				while(rs.next()) {
+					Object[] data = new Object[names.size()];
+					for(int j = 0; j < names.size(); j++) {
+						data[j] = rs.getString(j+1);
+					}
+					model.addRow(data);
+				}
+				
+				
+			} catch (SQLException e) {
+				e.printStackTrace();
+			}
+			
+			
 		}
 		
 	}
