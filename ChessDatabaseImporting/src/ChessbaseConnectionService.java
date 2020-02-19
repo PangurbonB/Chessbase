@@ -55,10 +55,11 @@ public class ChessbaseConnectionService {
 	private JPanel inputPanel;
 	private ArrayList<JTextField> inputs;
 	private String[] tableNames = {"Judge", "Person", "Player", "Tournament", "MatchHost", "ChessMatch", "ChessMove", "CompetesIn"};
-	private String[] searchOptions = {"None", "ELO Search", "Full Name Search", "Tournament Name Search"};
-	private String[] searchTables = {"Player", "Person", "Tournament"};
-	private String[] searchWheres = {"ELO", "FullName", "TournamentName"};
+	private String[] searchOptions = {"None", "ELO Search", "Full Name Search", "Tournament Name Search","Player Matches", "Player Wins", "Player Losses", "Moves By Match ID"};
+	private String[] searchTables = {"Player", "Person", "Tournament", "PlayerMatchHistory", "PlayerWinHistory", "PlayerLossHistory", "MatchMoves"};
+	private String[] searchWheres = {"ELO", "FullName", "TournamentName", "Username", "Username", "Username", "MatchID"};
 	private JButton searchButton;
+	private boolean isGuest;
 	
 	/**
 	 * A basic constructor for our connection service.
@@ -69,6 +70,7 @@ public class ChessbaseConnectionService {
 		this.serverName = serverName;
 		this.databaseName = databaseName;
 		this.loginFrame = makeLoginDialog();
+		this.isGuest = true;
 	}
 	
 	/**
@@ -89,6 +91,7 @@ public class ChessbaseConnectionService {
 		}
 		catch(SQLException e) {
 			System.out.println("Invalid Login Credentials");
+			JOptionPane.showMessageDialog(null, "Invalid Login Credentials");
 		}
 		return false;	
 	}
@@ -115,6 +118,9 @@ public class ChessbaseConnectionService {
 	 * Opens the 'use' frame, where we can select from and edit our data.
 	 */
 	public void openUseFrame() {
+		if(this.useFrame != null) {
+			return;
+		}
 		JFrame frame = new JFrame("Chessbase Query Window");
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		createMenuBar(frame);
@@ -125,6 +131,7 @@ public class ChessbaseConnectionService {
 		this.loginFrame.dispose();
 		if (this.inputFrame != null) {
 			this.inputFrame.dispose();
+			this.inputFrame = null;
 		}
 		this.useFrame = frame;
 		
@@ -190,6 +197,14 @@ public class ChessbaseConnectionService {
 	}
 	
 	private void openInputFrame() {
+		if(this.inputFrame != null) {
+			return;
+		}
+		if(this.isGuest) {
+			System.out.println("User is guest. Cannot input or update.");
+			JOptionPane.showMessageDialog(null, "User is guest. Cannot input or update.");
+			return;
+		}
 		JFrame frame = new JFrame("Chessbase Query Window");
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		frame.setSize(new Dimension(1250, 350));
@@ -198,6 +213,7 @@ public class ChessbaseConnectionService {
 		frame.add(panel);
 		if (this.useFrame != null) {
 			this.useFrame.dispose();
+			this.useFrame = null;
 		}
 		
 		JPanel topPanel = new JPanel();
@@ -260,10 +276,13 @@ public class ChessbaseConnectionService {
 		passwordEntry.setText("Password123");
 		JButton connectButton = new JButton("Connect");
 		connectButton.addActionListener(new ConnectActionListener());
+		JButton connectGuestButton = new JButton("Connect As Guest");
+		connectGuestButton.addActionListener(new ConnectGuestActionListener());
 		
 		panel.add(usernameEntry);
 		panel.add(passwordEntry);
 		panel.add(connectButton);
+		panel.add(connectGuestButton);
 		
 		this.userBox = usernameEntry;
 		this.passBox = passwordEntry;
@@ -286,6 +305,27 @@ public class ChessbaseConnectionService {
 			boolean connectionSuccessful = connectFromFrame();
 			if(!connectionSuccessful) {
 				System.out.println("Failed Connection");
+				JOptionPane.showMessageDialog(null, "Failed Connection");
+				return;
+			}
+			ChessbaseConnectionService.this.setIsGuest(false);
+			openUseFrame();
+		}
+
+		private void openUseFrame() {
+			ChessbaseConnectionService.this.openUseFrame();
+		}
+
+	}
+	
+	private class ConnectGuestActionListener implements ActionListener{
+
+		@Override
+		public void actionPerformed(ActionEvent e) {
+			boolean connectionSuccessful = connectGuest();
+			if(!connectionSuccessful) {
+				System.out.println("Failed Connection");
+				JOptionPane.showMessageDialog(null, "Failed Connection");
 				return;
 			}
 			openUseFrame();
@@ -310,6 +350,18 @@ public class ChessbaseConnectionService {
 		return connect(user, pass);
 	}
 	
+	public void setIsGuest(boolean b) {
+		this.isGuest = b;		
+	}
+
+	private boolean connectGuest() {
+		
+		String user = "SodaBaseUserzonickba20";
+		String pass = "Password123";
+		
+		return connect(user, pass);
+	}
+	
 	/**
 	 * This button is attached to the 'Search' button, and executes the search when the button is hit.
 	 * @author zonickba
@@ -324,6 +376,7 @@ public class ChessbaseConnectionService {
 			PreparedStatement ps;
 			if(constraintMenu.getSelectedIndex() == 0) {
 				System.out.println("Bad Selection!");
+				JOptionPane.showMessageDialog(null, "Bad Selection!");
 				return;
 			}
 			try { //This part goes and executes the query we want executed.
