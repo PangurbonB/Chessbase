@@ -13,6 +13,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
 import java.util.ArrayList;
+import java.util.HashMap;
 
 import javax.swing.JButton;
 import javax.swing.JComboBox;
@@ -30,6 +31,7 @@ import javax.swing.JTextField;
 import javax.swing.plaf.basic.BasicOptionPaneUI;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableColumnModel;
 /**
  * This method handles connection to the database, along with the GUI
  * @author zonickba, juricar
@@ -54,12 +56,17 @@ public class ChessbaseConnectionService {
 	private ArrayList<String> fieldNames;
 	private JPanel inputPanel;
 	private ArrayList<JTextField> inputs;
-	private String[] tableNames = {"Judge", "Person", "Player", "Tournament", "MatchHost", "ChessMatch", "ChessMove", "CompetesIn"};
-	private String[] searchOptions = {"None", "ELO Search", "Full Name Search", "Tournament Name Search","Player Matches", "Player Wins", "Player Losses", "Moves By Match ID"};
-	private String[] searchTables = {"Player", "Person", "Tournament", "PlayerMatchHistory", "PlayerWinHistory", "PlayerLossHistory", "MatchMoves"};
-	private String[] searchWheres = {"ELO", "FullName", "TournamentName", "Username", "Username", "Username", "MatchID"};
+	private String[] tableNames = {"Judges", "People", "Players", "Tournaments", "Match Hosts", "Matches"};
+	private String[] searchOptions = {"None", "ELO Search", "Full Name Search", "Tournament Name Search","Player Match Search", "Player Win Search", "Player Loss Search", "Moves By Match ID Search", "Match ID Search"};
+	//private String[] searchTables = {"Player", "Person", "Tournament", "PlayerMatchHistory", "PlayerWinHistory", "PlayerLossHistory", "MatchMoves"};
+	//private String[] searchWheres = {"ELO", "FullName", "TournamentName", "Username", "Username", "Username", "MatchID"};
+	//private String[] searchCols = {"Username, ELO, IsComp", "Username, FullName, JoinDate", "*", "*", "*", "Turn, MoveCode"};
+	private HashMap<String,String> procLookupTables;
+	private HashMap<String,String> searchLookup;
 	private JButton searchButton;
 	private boolean isGuest;
+	
+	private final String STARTINGTABLE = "People";
 	
 	/**
 	 * A basic constructor for our connection service.
@@ -71,6 +78,27 @@ public class ChessbaseConnectionService {
 		this.databaseName = databaseName;
 		this.loginFrame = makeLoginDialog();
 		this.isGuest = true;
+		initHashMaps();
+	}
+	
+	private void initHashMaps(){
+		this.procLookupTables = new HashMap<String,String>();
+		procLookupTables.put("Judges", "GetJudgeList");
+		procLookupTables.put("People", "GetPersonList");
+		procLookupTables.put("Players", "GetPlayerList");
+		procLookupTables.put("Tournaments", "GetTournamentList");
+		procLookupTables.put("Match Hosts", "GetMatchHostList");
+		procLookupTables.put("Matches", "GetMatchList");
+		
+		this.searchLookup = new HashMap<String,String>();
+		searchLookup.put("ELO Search", "ELOSearch");
+		searchLookup.put("Full Name Search", "FullNameSearch");
+		searchLookup.put("Tournament Name Search", "TournamentNameSearch");
+		searchLookup.put("Player Match Search", "PlayerMatchSearch");
+		searchLookup.put("Player Win Search", "PlayerWinSearch");
+		searchLookup.put("Player Loss Search", "PlayerLossSearch");
+		searchLookup.put("Moves By Match ID Search", "MatchIDMovesSearch");
+		searchLookup.put("Match ID Search", "MatchIDSearch");
 	}
 	
 	/**
@@ -110,7 +138,7 @@ public class ChessbaseConnectionService {
 		try {
 			this.connection.close();
 		} catch (SQLException e) {
-			e.printStackTrace();
+			JOptionPane.showMessageDialog(null, "Failed To Close Connection");
 		}
 	}	
 	
@@ -136,28 +164,49 @@ public class ChessbaseConnectionService {
 		this.useFrame = frame;
 		
 		try {
-			String query = "SELECT Username, Pswd, FullName, JoinDate FROM Person"; //The starting info, in there by default.
-			Statement s = connection.createStatement();
-			ResultSet rs = s.executeQuery(query);
-			
+			String query = "EXEC "+this.procLookupTables.get(STARTINGTABLE); //The starting info, in there by default.
+			PreparedStatement ps = connection.prepareStatement(query);
+			ResultSet rs = ps.executeQuery();
+			ResultSetMetaData rsmd = rs.getMetaData();
 			//System.out.println("Made Query");
 			
 			JTable table = new JTable(new DefaultTableModel());
+			ArrayList<String> names = new ArrayList<String>();
+			int columnCount = rsmd.getColumnCount();
+			numFields = columnCount;
+		
+			DefaultTableModel model = (DefaultTableModel) table.getModel();
+			model.setColumnCount(0);
+			model.setRowCount(0);
+			for(int i = 0; i < columnCount; i++) {
+				names.add(rsmd.getColumnName(i+1));
+				model.addColumn(rsmd.getColumnName(i+1));
+				
+			}
+			fieldNames = names;
 			
 			int i = 0;
-			DefaultTableModel model = (DefaultTableModel) table.getModel();
+			while(rs.next()) {
+				i++;
+				Object[] data = new Object[names.size()];
+				for(int j = 0; j < names.size(); j++) {
+					data[j] = rs.getString(j+1);
+				}
+				model.addRow(data);
+			}
 			
-			model.addColumn("Username"); 
-			model.addColumn("Password");
+			
+			
+			/*model.addColumn("Username"); 
 			model.addColumn("Full Name");
 			model.addColumn("Join Date");
 			while(rs.next()) {
 				i++;
 				
-				model.addRow(new Object[]{rs.getString("Username"), rs.getString("Pswd"), rs.getString("FullName"), rs.getString("JoinDate")});
+				model.addRow(new Object[]{rs.getString("Username"), rs.getString("FullName"), rs.getString("JoinDate")});
 				
 				//System.out.println(rs.getString("Username") + " : " + rs.getString("Pswd") + " : " +rs.getString("FullName") + " : " +rs.getString("JoinDate"));
-			}
+			}*/
 			JScrollPane scrollPane = new JScrollPane(table);
 			
 			this.table = table;
@@ -184,14 +233,14 @@ public class ChessbaseConnectionService {
 			topPanel.add(constraintList,BorderLayout.CENTER);
 			topPanel.add(entryBox, BorderLayout.EAST);
 			topPanel.add(searchButton, BorderLayout.EAST);
-			panel.add(scrollPane, BorderLayout.PAGE_END);
+			panel.add(scrollPane, BorderLayout.CENTER);
 			frame.pack();
 			frame.setVisible(true);
 			//System.out.println("Returned");
 			return;
 		}
 		catch(SQLException e) {
-			e.printStackTrace();
+			JOptionPane.showMessageDialog(null, "Failed to open use frame");
 		}
 		closeConnection();
 	}
@@ -372,19 +421,26 @@ public class ChessbaseConnectionService {
 		@Override
 		public void actionPerformed(ActionEvent arg0) {
 			
-			String query = "SELECT * FROM ";
-			PreparedStatement ps;
+			
+			CallableStatement ps;
 			if(constraintMenu.getSelectedIndex() == 0) {
 				System.out.println("Bad Selection!");
 				JOptionPane.showMessageDialog(null, "Bad Selection!");
 				return;
 			}
 			try { //This part goes and executes the query we want executed.
-				query = query + searchTables[constraintMenu.getSelectedIndex() -1] + " WHERE " + searchWheres[constraintMenu.getSelectedIndex() - 1] + " = '" +searchBox.getText()+"'";
+				//String query = "SELECT ";
+				//query = query+ searchCols[constraintMenu.getSelectedIndex() -1]+ " FROM " + searchTables[constraintMenu.getSelectedIndex() -1] + " WHERE " + searchWheres[constraintMenu.getSelectedIndex() - 1] + " = ?";
+				String q2 = "{? = call " + searchLookup.get(constraintMenu.getSelectedItem().toString()) + "(?)}";
+				int errcode = 0;
 				//System.out.println(query);
-				ps = connection.prepareStatement(query);
-				ResultSet rs = ps.executeQuery();
-
+				ps = connection.prepareCall(q2);
+				System.out.println(q2);
+				ps.setString(2, searchBox.getText());
+				ps.registerOutParameter(1, errcode);
+				ps.execute();
+				ResultSet rs = ps.getResultSet();
+				System.out.println(0);
 				DefaultTableModel model = (DefaultTableModel) table.getModel();
 				model.setColumnCount(0);
 				model.setRowCount(0);
@@ -410,7 +466,7 @@ public class ChessbaseConnectionService {
 				
 				
 			} catch (SQLException e) {
-				e.printStackTrace();
+				JOptionPane.showMessageDialog(null, "Invalid Search Term");
 			}
 			
 			
@@ -428,16 +484,15 @@ public class ChessbaseConnectionService {
 
 		@Override
 		public void actionPerformed(ActionEvent arg0) {
-			
-			Object selected = selectionMenu.getSelectedItem();
-			
-			String query = "SELECT * FROM "+ selected.toString();
-			
-			Statement s;
-			
+			//Statement s;
+			//Object selected = selectionMenu.getSelectedItem();
+			//String query = "SELECT * FROM "+ selected.toString();
+			String query = "EXEC " + procLookupTables.get(selectionMenu.getSelectedItem());
+			PreparedStatement ps;
 			try {
-				s = connection.createStatement();
-				ResultSet rs = s.executeQuery(query);
+				//s = connection.createStatement();
+				ps = connection.prepareStatement(query);
+				ResultSet rs = ps.executeQuery();
 				ResultSetMetaData rsmd = rs.getMetaData();
 				ArrayList<String> names = new ArrayList<String>();
 				int columnCount = rsmd.getColumnCount();
@@ -479,7 +534,8 @@ public class ChessbaseConnectionService {
 				
 				//System.out.println(names);
 			} catch (SQLException e) {
-				e.printStackTrace();
+
+				JOptionPane.showMessageDialog(null, "Table Switch Failed");
 			}
 			
 			//System.out.println(query);
@@ -497,7 +553,7 @@ public class ChessbaseConnectionService {
 			String query = "EXEC " + selected +"Insert ";
 			PreparedStatement ps;
 			try { //This part goes and executes the query we want executed.
-				query = query + searchTables[constraintMenu.getSelectedIndex() -1] + " WHERE " + searchWheres[constraintMenu.getSelectedIndex() - 1] + " = '" +searchBox.getText()+"'";
+				//query = query + searchTables[constraintMenu.getSelectedIndex() -1] + " WHERE " + searchWheres[constraintMenu.getSelectedIndex() - 1] + " = '" +searchBox.getText()+"'";
 				//System.out.println(query);
 				ps = connection.prepareStatement(query);
 				ResultSet rs = ps.executeQuery();
