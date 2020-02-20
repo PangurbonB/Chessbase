@@ -20,9 +20,21 @@ public class Importer {
 	private String file;
 	private ChessbaseConnectionService chessdb;
 	private Connection c;
-	private final String dbName = "ChessDatabase";
+	private final String dbName = "TestChessDatabase2";
 	private final String serverName = "golem.csse.rose-hulman.edu";
 	private int moveID;
+	
+	private final int TOURNAMENTID = 4;
+	private final String TOURNAMENTNAME = "FICS Rated Standard Game";
+	private final String TOURNAMENTSTARTDATE = "2019-11-01";
+	private final String TOURNAMENTENDDATE = "2019-12-01";
+	private final String TOURNAMENTLOCATION = "Internet";
+	
+	private final String JUDGEUSERNAME = "FICS.org";
+	private final String JUDGERANK = "N/A";
+	
+	private final int MATCHHOSTID = 9;
+	private final String MATCHHOSTNAME = "FICS";
 	
 	public static void main(String[] args) {
 		new Importer();
@@ -36,8 +48,10 @@ public class Importer {
 		this.file = "c:/ficsgamesdb_201911_standard2000_nomovetimes_111149.pgn";
 		this.moveID = 1;
 		chessdb = new ChessbaseConnectionService(serverName, dbName);
-		System.out.println(chessdb.connect("SodaBaseUserzonickba20", "Password123"));
+		chessdb.connect("SodaBaseUserzonickba20", "Password123");
+		//System.out.println(chessdb.connect("SodaBaseUserzonickba20", "Password123"));
 		c = chessdb.getConnection();
+		//System.out.println(c);
 		ArrayList<ChessGame> games = parseGames(this.file);
 		importGames(games);
 		chessdb.closeConnection();
@@ -50,6 +64,10 @@ public class Importer {
 	 */
 	private void importGames(ArrayList<ChessGame> games) {
 		
+		makeTournament();
+		makeJudge();
+		makeMatchHost();
+		
 		for(int i = 0; i < games.size(); i++) {
 			importChessGame(games.get(i), i+5);
 		}
@@ -57,6 +75,61 @@ public class Importer {
 	}
 	
 	
+	private void makeMatchHost() {
+		CallableStatement cs;
+		try {
+			cs = c.prepareCall("{? = call MatchHostInsert(?, ?)}"); //The actual call.
+			cs.setInt(2, MATCHHOSTID);
+			cs.setString(3, MATCHHOSTNAME);
+			cs.registerOutParameter(1, Types.INTEGER);
+			cs.execute();
+			if(cs.getInt(1) == 10) {
+				System.out.println("Duplicate record not inserted: Move");
+			}
+		}
+		catch(SQLException e) {
+			e.printStackTrace();
+		}
+	}
+
+	private void makeJudge() {
+		makePerson(JUDGEUSERNAME);
+		CallableStatement cs;
+		try {
+			cs = c.prepareCall("{? = call JudgeInsert(?, ?)}"); //The actual call.
+			cs.setString(2, JUDGEUSERNAME);
+			cs.setString(3, JUDGERANK);
+			cs.registerOutParameter(1, Types.INTEGER);
+			cs.execute();
+			if(cs.getInt(1) == 10) {
+				System.out.println("Duplicate record not inserted: Judge");
+			}
+		}
+		catch(SQLException e) {
+			e.printStackTrace();
+		}
+	}
+
+	private void makeTournament() {
+		CallableStatement cs;
+		try {
+			cs = c.prepareCall("{? = call TournamentInsert(?, ?, ?, ?, ?)}"); //The actual call.
+			cs.setInt(2, TOURNAMENTID);
+			cs.setString(3, TOURNAMENTSTARTDATE);
+			cs.setString(4, TOURNAMENTENDDATE);
+			cs.setString(5, TOURNAMENTLOCATION);
+			cs.setString(6, TOURNAMENTNAME);
+			cs.registerOutParameter(1, Types.INTEGER);
+			cs.execute();
+			if(cs.getInt(1) == 10) {
+				System.out.println("Duplicate record not inserted: Tournament");
+			}
+		}
+		catch(SQLException e) {
+			e.printStackTrace();
+		}
+	}
+
 	/**
 	 * Our data parsing from file. This reads an FICS file, and stores the relevant items in variables, which
 	 * it then places into new 'ChessGame' objects.
@@ -78,7 +151,7 @@ public class Importer {
 			
 			
 			line = in.readLine();
-			while(line != null && numGames < 100) { //The number on the right is the limiter. Note, there is a zero game, so doing "numGames < 100" imports 100 games, not 99
+			while(line != null && numGames < 3) { //The number on the right is the limiter. Note, there is a zero game, so doing "numGames < 100" imports 100 games, not 99
 				cg = new ChessGame();
 				count = 0;
 				while(count < 2) { //A regular 'game' in the FICS format has one blank line in it. When we hit our second blank line (or EOF), we move on to the next game
@@ -86,7 +159,7 @@ public class Importer {
 					String[] ss = line.split("\"");
 					if(ss.length == 1) {
 						if(!ss[0].equals("")) {
-							System.out.println("Length 1: "+ ss[0]);
+							//System.out.println("Length 1: "+ ss[0]);
 							cg.ms = ss[0];
 							cg.setMoves();
 						}
@@ -114,7 +187,7 @@ public class Importer {
 					line = in.readLine();
 					if(line == null) break; //For the last game, we hit EOF before a newline, so we break if we see EOF
 				}
-				System.out.println(numGames);
+				//System.out.println(numGames);
 				cgs.add(cg);
 				numGames++;
 			}
@@ -146,7 +219,7 @@ public class Importer {
 	 */
 	private void importChessGame(ChessGame c, int matchID) {
 		
-		System.out.println(c.whiteUser + " " +  c.blackUser);
+		//System.out.println(c.whiteUser + " " +  c.blackUser);
 		
 		makePlayer(c.whiteUser, c.whiteIsComp); //We need to have valid players for this to work. By attempting to add them, we ensure that they exist. If they already exist, that's fine.
 		makePlayer(c.blackUser, c.blackIsComp);
@@ -161,7 +234,7 @@ public class Importer {
 		}
 		else if(c.blackResult.equals("1")) {
 			winnerUsername = c.blackUser;
-			loserUsername = c.blackUser;
+			loserUsername = c.whiteUser;
 		}
 		else {
 			winnerUsername = c.whiteUser;
@@ -191,6 +264,9 @@ public class Importer {
 			cs.setString(6, null);
 			cs.registerOutParameter(1, Types.INTEGER);
 			cs.execute();
+			if(cs.getInt(1) == 10) {
+				System.out.println("Duplicate record not inserted: Move");
+			}
 			
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
@@ -219,9 +295,9 @@ public class Importer {
 		
 		String[] modDate = date.split("\\.");
 		String fixDate = modDate[0]+"-"+modDate[1]+"-"+modDate[2]; //Date conversions. Always fun.
-		System.out.println(fixDate);
-		System.out.println(loserUsername);
-		System.out.println(fixDate);
+		//System.out.println(fixDate);
+		//System.out.println(loserUsername);
+		//System.out.println(fixDate);
 		
 		try {
 			cs = c.prepareCall("{? = call ChessMatchInsert(?, ?, ?, ?, ?, ?, ?, ?, ?)}"); //The actual call.
@@ -235,8 +311,13 @@ public class Importer {
 			cs.setString(9, loserUsername);
 			cs.setInt(10, wasDraw);
 			cs.registerOutParameter(1, Types.INTEGER);
+			System.out.println(winnerUsername + " " + loserUsername);
 			cs.execute();
+			if(cs.getInt(1) == 10) {
+				System.out.println("Duplicate record not inserted: Match");
+			}
 			return (0 == cs.getInt(1));
+			
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -273,6 +354,10 @@ public class Importer {
 			cs.setInt(4, comp);
 			cs.registerOutParameter(1, Types.INTEGER);
 			cs.execute();
+			if(cs.getInt(1) == 10) {
+				System.out.println("Duplicate record not inserted: Player");
+			}
+			//System.out.println(cs.toString());
 			return (0 == cs.getInt(1));
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
@@ -290,15 +375,20 @@ public class Importer {
 	private boolean makePerson(String person) {
 		
 		CallableStatement cs;
+		//System.out.println(c);
 		
 		try {
 			cs = c.prepareCall("{? = call PersonInsert(?, ?, ?, ?)}");
 			cs.setString(2, person); 
 			cs.setString(3, "autogeneratedpassword");
-			cs.setString(4, person); //Yes, we assume their real name is their username.
+			cs.setString(4, person); //We assume their real name is their username.
 			cs.setString(5, "2/13/2020"); //Join date is fake, since we don't have access to FICS's data on that.
 			cs.registerOutParameter(1, Types.INTEGER);
 			cs.execute();
+			if(cs.getInt(1) == 10) {
+				System.out.println("Duplicate record not inserted: Person");
+			}
+			//System.out.println(person);
 			return (0 == cs.getInt(1));
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
