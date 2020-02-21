@@ -33,7 +33,7 @@ import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableColumnModel;
 /**
  * This method handles connection to the database, along with the GUI
- * @author zonickba, juricar
+ * @author zonickba, juricar, Dylan Scheumann
  *
  */
 public class ChessbaseConnectionService {
@@ -56,8 +56,9 @@ public class ChessbaseConnectionService {
 	private JPanel inputPanel;
 	private ArrayList<JTextField> inputs;
 	private JRadioButton isUpdate;
-	private String[] tableNames = {"Judges", "People", "Players", "Tournaments", "Match Hosts", "Matches"};
-	private String[] searchOptions = {"None", "ELO Search", "Full Name Search", "Tournament Name Search","Player Match Search", "Player Win Search", "Player Loss Search", "Moves By Match ID Search", "Match ID Search"};
+	private String[] tableNames = {"Judges", "People", "Players", "Tournaments", "Match Hosts", "Matches", "Competes In"};
+	private String[] tableInsertNames = {"Judges", "People", "Players", "Tournaments", "Match Hosts", "Matches", "Competes In"};
+	private String[] searchOptions = {"None", "ELO Search", "Player Search By Username", "Person Search By Username", "Judge Search By Username", "Full Name Search", "Tournament Name Search","Player Match Search", "Player Win Search", "Player Loss Search", "Moves By Match ID Search", "Match ID Search","Total Player Wins By Username","Total Player Losses By Username", "Tournaments a player has competed in"};
 	//private String[] searchTables = {"Player", "Person", "Tournament", "PlayerMatchHistory", "PlayerWinHistory", "PlayerLossHistory", "MatchMoves"};
 	//private String[] searchWheres = {"ELO", "FullName", "TournamentName", "Username", "Username", "Username", "MatchID"};
 	//private String[] searchCols = {"Username, ELO, IsComp", "Username, FullName, JoinDate", "*", "*", "*", "Turn, MoveCode"};
@@ -89,9 +90,13 @@ public class ChessbaseConnectionService {
 		procLookupTables.put("Tournaments", "GetTournamentList");
 		procLookupTables.put("Match Hosts", "GetMatchHostList");
 		procLookupTables.put("Matches", "GetMatchList");
+		procLookupTables.put("Competes In", "GetCompetesInList");
 		
 		this.searchLookup = new HashMap<String,String>();
 		searchLookup.put("ELO Search", "ELOSearch");
+		searchLookup.put("Player Search By Username", "PlayerSearch");
+		searchLookup.put("Person Search By Username", "PersonSearch");
+		searchLookup.put("Judge Search By Username", "JudgeSearch");
 		searchLookup.put("Full Name Search", "FullNameSearch");
 		searchLookup.put("Tournament Name Search", "TournamentNameSearch");
 		searchLookup.put("Player Match Search", "PlayerMatchSearch");
@@ -99,6 +104,9 @@ public class ChessbaseConnectionService {
 		searchLookup.put("Player Loss Search", "PlayerLossSearch");
 		searchLookup.put("Moves By Match ID Search", "MatchIDMovesSearch");
 		searchLookup.put("Match ID Search", "MatchIDSearch");
+		searchLookup.put("Total Player Wins By Username", "CountMatchesWon");
+		searchLookup.put("Total Player Losses By Username", "CountMatchesLost");
+		searchLookup.put("Tournaments a player has competed in", "GetCompetesInTournamentsList");
 	}
 	
 	/**
@@ -160,6 +168,7 @@ public class ChessbaseConnectionService {
 		if (this.inputFrame != null) {
 			this.inputFrame.dispose();
 			this.inputFrame = null;
+			System.out.println("Cleanup");
 		}
 		this.useFrame = frame;
 		
@@ -244,7 +253,9 @@ public class ChessbaseConnectionService {
 		}
 		closeConnection();
 	}
-	
+	/**
+	 * The frame for inserting/updating
+	 */
 	private void openInputFrame() {
 		if(this.inputFrame != null) {
 			return;
@@ -269,7 +280,7 @@ public class ChessbaseConnectionService {
 		
 		JLabel tableText = new JLabel("Table to Insert Into/Update:");
 		
-		JComboBox tableChoice = new JComboBox(tableNames);
+		JComboBox tableChoice = new JComboBox(tableInsertNames);
 		tableChoice.setSelectedIndex(-1);
 		tableChoice.addActionListener(new TableSwitchListener());
 		this.selectionMenu = tableChoice;
@@ -296,6 +307,10 @@ public class ChessbaseConnectionService {
 		frame.setVisible(true);
 	}
 	
+	/**
+	 * The menu bar (for swapping between insert/update and selection)
+	 * @param frame
+	 */
 	private void createMenuBar(JFrame frame) {
 		JMenuBar menuBar = new JMenuBar();
 		JMenu menu = new JMenu("Applications");
@@ -319,7 +334,7 @@ public class ChessbaseConnectionService {
 	}
 	
 	/**
-	 * This method makes the login dialog, where the user enters login credentials to acces our database.
+	 * This method makes the login dialog, where the user enters login credentials to access our database.
 	 * @return
 	 */
 	public JFrame makeLoginDialog() {
@@ -329,9 +344,9 @@ public class ChessbaseConnectionService {
 		frame.add(panel, BorderLayout.CENTER);
 		
 		JTextField usernameEntry = new JTextField(50);
-		usernameEntry.setText("SodaBaseUserzonickba20"); //default credentials
+		usernameEntry.setText("Username"); //default credentials
 		JTextField passwordEntry = new JTextField(50);
-		passwordEntry.setText("Password123");
+		passwordEntry.setText("Password");
 		JButton connectButton = new JButton("Connect");
 		connectButton.addActionListener(new ConnectActionListener());
 		JButton connectGuestButton = new JButton("Connect As Guest");
@@ -408,6 +423,10 @@ public class ChessbaseConnectionService {
 		return connect(user, pass);
 	}
 	
+	/**
+	 * This just sets our user to a guest when they login without an administrator username and password.
+	 * @param b
+	 */
 	public void setIsGuest(boolean b) {
 		this.isGuest = b;		
 	}
@@ -433,8 +452,8 @@ public class ChessbaseConnectionService {
 			
 			CallableStatement ps;
 			if(constraintMenu.getSelectedIndex() == 0) {
-				System.out.println("Bad Selection!");
-				JOptionPane.showMessageDialog(null, "Bad Selection!");
+//				System.out.println("Please select a search option to use search functionality");
+				JOptionPane.showMessageDialog(null, "Please select a search option to use search functionality");
 				return;
 			}
 			try { //This part goes and executes the query we want executed.
@@ -534,10 +553,15 @@ public class ChessbaseConnectionService {
 						texts.add(text);
 						inputPanel.add(text);
 					}
-					inputs = texts;
-					inputPanel.revalidate();
-					inputPanel.repaint();
-					inputFrame.repaint();
+					try {
+						inputs = texts;
+						inputPanel.revalidate();
+						inputPanel.repaint();
+						//inputFrame.repaint();
+					}
+					catch(Exception e){
+						System.out.println("FFF");
+					}
 				}
 				
 				
@@ -552,6 +576,11 @@ public class ChessbaseConnectionService {
 		
 	}
 	
+	/**
+	 * This listener handles the actual insertion and updating process of calling stored procedures.
+	 * @author juricar, zonickba
+	 *
+	 */
 	private class InsertButtonListener implements ActionListener{
 
 		@Override
@@ -591,6 +620,10 @@ public class ChessbaseConnectionService {
 				sprocName = "ChessMatch";
 				args = "(?, ?, ?, ?, ?, ?, ?, ?, ?)";
 				break;
+			case "Competes In":
+				sprocName = "CompetesIn";
+				args = "(?, ?)";
+				break;
 			}
 			
 			String query = "{? = call " + sprocName + action + args + "}";
@@ -608,7 +641,7 @@ public class ChessbaseConnectionService {
 				case "People":
 					//args = "@Username = ?, @Pswd = ?, @Fullname = ?, @Joindate = ?";
 					cs.setString(2, inputs.get(0).getText());
-					cs.setString(3, "autogeneratedpassword");
+					cs.setString(3, "HASH SALT");
 					cs.setString(4, inputs.get(1).getText());
 					cs.setString(5, inputs.get(2).getText());
 					break;
@@ -620,11 +653,12 @@ public class ChessbaseConnectionService {
 					break;
 				case "Tournaments":
 					//args = "@TournamentID = ?, @StartDate = ?, @EndDate = ?, @TournamentLocation = ?, @TournamentName = ?";
-					cs.setInt(2, Integer.parseInt(inputs.get(0).getText()));
+					cs.setInt(2, 1);
 					cs.setString(3, inputs.get(1).getText());
 					cs.setString(4, inputs.get(2).getText());
 					cs.setString(5, inputs.get(3).getText());
-					cs.setString(6, inputs.get(4).getText());
+					cs.setString(6, inputs.get(0).getText());
+					System.out.println(inputs.get(0).getText() + " 1" + inputs.get(1).getText() + " 2" + inputs.get(2).getText());
 					break;
 				case "Match Hosts":
 					//args = "@OrgID = ?, @OrgName = ?";
@@ -643,14 +677,27 @@ public class ChessbaseConnectionService {
 					cs.setString(8, inputs.get(6).getText());
 					cs.setString(9, inputs.get(7).getText());
 					cs.setInt(10, Integer.parseInt(inputs.get(8).getText()));
+					System.out.println(inputs.get(0).getText() + " 1 + "+ inputs.get(2).getText() + " 1 + "+ inputs.get(3).getText() + " 1 + "+ inputs.get(4).getText() + " 1 + " + inputs.get(5).getText() + " 1 + " + inputs.get(6).getText() +  " 1 + " + inputs.get(7).getText() + " 1 + "+inputs.get(8).getText());
+					break;
+				case "Competes In":
+					cs.setString(2, inputs.get(0).getText());
+					cs.setInt(3, Integer.parseInt(inputs.get(1).getText()));
 					break;
 				}
 				cs.execute();
+				if (cs.getInt(1) == 5) {
+					if (update) {
+						JOptionPane.showMessageDialog(null, "Something went wrong while updating. Person is invalid.");
+					} else {
+						JOptionPane.showMessageDialog(null, "Something went wrong while inserting. Person is invalid.");
+					}
+					
+				}
 				if (cs.getInt(1) == 10) {
 					if (update) {
 						JOptionPane.showMessageDialog(null, "Something went wrong while updating. Pehaps your parameters are invalid?");
 					} else {
-						JOptionPane.showMessageDialog(null, "Something went wrong while inserting. Pehaps your parameters are invalid?");
+						JOptionPane.showMessageDialog(null, "Record already exists!");
 					}
 					
 				}
